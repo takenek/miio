@@ -1,6 +1,6 @@
 {
   "name": "@rifat/miio",
-  "version": "2.0.0",
+  "version": "2.0.1",
   "license": "MIT",
   "description": "Control Mi Home devices, such as Mi Robot Vacuums, Mi Air Purifiers, Mi Smart Home Gateway (Aqara) and more",
   "repository": "torifat/miio",
