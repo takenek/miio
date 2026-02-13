@@ -1,11 +1,15 @@
 {
 	"plugins": [ "node" ],
 	"extends": [ "eslint:recommended", "plugin:node/recommended" ],
-	"env": { "node": true },
+	"env": { "node": true, "es2020": true },
 	"globals": {},
+	"parserOptions": {
+		"ecmaVersion": 2020
+	},
 	"rules": {
 		"strict": [ "error", "global" ],
-		"node/no-unsupported-features": [ "error" ],
+		"node/no-unsupported-features/es-syntax": [ "error" ],
+		"node/no-unsupported-features/es-builtins": [ "error" ],
 		"no-irregular-whitespace": 2,
 		"quotes": [
 			2,

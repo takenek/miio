@@ -1,9 +1,12 @@
 {
-  "name": "@rifat/miio",
-  "version": "2.0.1",
+  "name": "@takenek/miio",
+  "version": "2.1.0",
   "license": "MIT",
   "description": "Control Mi Home devices, such as Mi Robot Vacuums, Mi Air Purifiers, Mi Smart Home Gateway (Aqara) and more",
-  "repository": "torifat/miio",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/takenek/miio"
+  },
   "main": "lib/index.js",
   "keywords": [
     "xiaomi",
@@ -20,20 +23,19 @@
     "test": "eslint ."
   },
   "engines": {
-    "node": ">=12.19.0"
+    "node": ">=14.0.0"
   },
   "dependencies": {
     "abstract-things": "^0.9.0",
-    "appdirectory": "^0.1.0",
-    "chalk": "^2.4.2",
-    "debug": "^3.2.7",
-    "deep-equal": "^1.1.1",
-    "mkdirp": "^0.5.5",
+    "chalk": "^4.1.2",
+    "debug": "^4.3.4",
+    "deep-equal": "^2.2.3",
+    "mkdirp": "^3.0.1",
     "tinkerhub-discovery": "^0.3.1",
-    "yargs": "^10.1.2"
+    "yargs": "^17.7.2"
   },
   "devDependencies": {
-    "eslint": "^7.16.0",
+    "eslint": "^8.56.0",
     "eslint-plugin-node": "^11.1.0"
   }
 }
