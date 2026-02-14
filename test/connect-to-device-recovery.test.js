@@ -2,6 +2,7 @@
 
 const test = require('node:test');
 const assert = require('node:assert/strict');
+const util = require('util');
 
 const network = require('../lib/network');
 const connectToDevice = require('../lib/connectToDevice');
@@ -191,6 +192,76 @@ test('connectToDevice retries transient nested-cause EALREADY failures and trigg
 		assert.equal(findAttempts, 2);
 		assert.deepEqual(recoveryReasons.map(entry => entry[0]), ['resetSocket', 'requestRecoveryDiscovery']);
 		assert.match(recoveryReasons[0][1], /connect retry after transient error: EALREADY/);
+	} finally {
+		global.setTimeout = originalSetTimeout;
+		network.ref = originalRef;
+		network.findDeviceViaAddress = originalFindDeviceViaAddress;
+		network.resetSocket = originalResetSocket;
+		network.requestRecoveryDiscovery = originalRequestRecoveryDiscovery;
+	}
+});
+
+test('connectToDevice retries transient EINTR errno failures and triggers recovery', async () => {
+	if (typeof util.getSystemErrorMap !== 'function') {
+		return;
+	}
+
+	let eintrErrno = null;
+	for (const [errno, [code]] of util.getSystemErrorMap()) {
+		if (code === 'EINTR') {
+			eintrErrno = errno;
+			break;
+		}
+	}
+
+	if (eintrErrno === null) {
+		return;
+	}
+
+	const originalRef = network.ref;
+	const originalFindDeviceViaAddress = network.findDeviceViaAddress;
+	const originalResetSocket = network.resetSocket;
+	const originalRequestRecoveryDiscovery = network.requestRecoveryDiscovery;
+	const originalSetTimeout = global.setTimeout;
+
+	let findAttempts = 0;
+	const recoveryReasons = [];
+
+	try {
+		global.setTimeout = (handler, timeout, ...args) => {
+			const timer = originalSetTimeout(handler, timeout, ...args);
+			timer.unref = () => timer;
+			return timer;
+		};
+
+		network.ref = () => ({ release() {} });
+		network.resetSocket = reason => {
+			recoveryReasons.push(['resetSocket', reason]);
+		};
+		network.requestRecoveryDiscovery = reason => {
+			recoveryReasons.push(['requestRecoveryDiscovery', reason]);
+		};
+
+		network.findDeviceViaAddress = async () => {
+			findAttempts++;
+			if (findAttempts === 1) {
+				const err = new Error('simulated transient connect errno error');
+				err.errno = eintrErrno;
+				throw err;
+			}
+
+			throw new Error('non transient failure');
+		};
+
+		await assert.rejects(connectToDevice({
+			address: '127.0.0.1',
+			port: 54321,
+			connectionRetries: 1
+		}));
+
+		assert.equal(findAttempts, 2);
+		assert.deepEqual(recoveryReasons.map(entry => entry[0]), ['resetSocket', 'requestRecoveryDiscovery']);
+		assert.match(recoveryReasons[0][1], /connect retry after transient error: EINTR/);
 	} finally {
 		global.setTimeout = originalSetTimeout;
 		network.ref = originalRef;
