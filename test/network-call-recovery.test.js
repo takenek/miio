@@ -20,7 +20,7 @@ function createTestDeviceInfo() {
 	});
 }
 
-for (const code of ['EINTR', 'EALREADY', 'ENOTCONN', 'EHOSTUNREACH']) {
+for (const code of TRANSIENT_NETWORK_ERROR_CODES) {
 	test(`device call triggers recovery flow for transient ${code} send errors`, async () => {
 		const device = createTestDeviceInfo();
 		const originalSocket = network._socket;
@@ -67,7 +67,9 @@ for (const code of ['EINTR', 'EALREADY', 'ENOTCONN', 'EHOSTUNREACH']) {
 	});
 }
 
-for (const code of ['EINTR', 'EALREADY', 'EINPROGRESS', 'ECONNABORTED']) {
+for (const code of TRANSIENT_NETWORK_ERROR_CODES) {
+	if (code === 'timeout') continue;
+
 	test(`device call triggers recovery flow for transient ${code} handshake errors`, async () => {
 		const device = createTestDeviceInfo();
 		const originalResetSocket = network.resetSocket;
@@ -108,51 +110,52 @@ for (const code of ['EINTR', 'EALREADY', 'EINPROGRESS', 'ECONNABORTED']) {
 	});
 }
 
-test('device call triggers recovery flow for transient socket send throw errors', async () => {
-	const code = 'EINTR';
-	const device = createTestDeviceInfo();
-	const originalSocket = network._socket;
-	const originalResetSocket = network.resetSocket;
-	const originalRequestRecoveryDiscovery = network.requestRecoveryDiscovery;
-	const originalHandshake = device.handshake;
-	const originalSetTimeout = global.setTimeout;
+for (const code of TRANSIENT_NETWORK_ERROR_CODES) {
+	test(`device call triggers recovery flow for transient ${code} socket send throw errors`, async () => {
+		const device = createTestDeviceInfo();
+		const originalSocket = network._socket;
+		const originalResetSocket = network.resetSocket;
+		const originalRequestRecoveryDiscovery = network.requestRecoveryDiscovery;
+		const originalHandshake = device.handshake;
+		const originalSetTimeout = global.setTimeout;
 
-	const recoveryReasons = [];
-	network.resetSocket = reason => {
-		recoveryReasons.push(['resetSocket', reason]);
-	};
-	network.requestRecoveryDiscovery = reason => {
-		recoveryReasons.push(['requestRecoveryDiscovery', reason]);
-	};
+		const recoveryReasons = [];
+		network.resetSocket = reason => {
+			recoveryReasons.push(['resetSocket', reason]);
+		};
+		network.requestRecoveryDiscovery = reason => {
+			recoveryReasons.push(['requestRecoveryDiscovery', reason]);
+		};
 
-	device.handshake = () => Promise.resolve(Buffer.alloc(16, 1));
-	device.packet.token = Buffer.alloc(16, 1);
-	global.setTimeout = (handler, timeout, ...args) => {
-		const timer = originalSetTimeout(handler, Math.min(timeout, 5), ...args);
-		timer.unref = () => timer;
-		return timer;
-	};
-	network._socket = {
-		send() {
-			throw createTransientError(code);
+		device.handshake = () => Promise.resolve(Buffer.alloc(16, 1));
+		device.packet.token = Buffer.alloc(16, 1);
+		global.setTimeout = (handler, timeout, ...args) => {
+			const timer = originalSetTimeout(handler, Math.min(timeout, 5), ...args);
+			timer.unref = () => timer;
+			return timer;
+		};
+		network._socket = {
+			send() {
+				throw createTransientError(code);
+			}
+		};
+
+		try {
+			await assert.rejects(device.call('miIO.info', [], { retries: 0 }));
+
+			assert.ok(recoveryReasons.length >= 2);
+			assert.equal(recoveryReasons[0][0], 'resetSocket');
+			assert.equal(recoveryReasons[1][0], 'requestRecoveryDiscovery');
+			assert.match(recoveryReasons[0][1], new RegExp(`socket send throw: ${code}`));
+		} finally {
+			global.setTimeout = originalSetTimeout;
+			network._socket = originalSocket;
+			network.resetSocket = originalResetSocket;
+			network.requestRecoveryDiscovery = originalRequestRecoveryDiscovery;
+			device.handshake = originalHandshake;
 		}
-	};
-
-	try {
-		await assert.rejects(device.call('miIO.info', [], { retries: 0 }));
-
-		assert.ok(recoveryReasons.length >= 2);
-		assert.equal(recoveryReasons[0][0], 'resetSocket');
-		assert.equal(recoveryReasons[1][0], 'requestRecoveryDiscovery');
-		assert.match(recoveryReasons[0][1], new RegExp(`socket send throw: ${code}`));
-	} finally {
-		global.setTimeout = originalSetTimeout;
-		network._socket = originalSocket;
-		network.resetSocket = originalResetSocket;
-		network.requestRecoveryDiscovery = originalRequestRecoveryDiscovery;
-		device.handshake = originalHandshake;
-	}
-});
+	});
+}
 
 test('transient network error code list includes reconnect race conditions', () => {
 	assert.ok(TRANSIENT_NETWORK_ERROR_CODES.has('EINTR'));
