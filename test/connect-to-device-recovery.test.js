@@ -271,10 +271,8 @@ async function assertConnectRetryForErrnoCode(code) {
 	}
 }
 
-test('connectToDevice retries transient EINTR errno failures and triggers recovery', async () => {
-	await assertConnectRetryForErrnoCode('EINTR');
-});
-
-test('connectToDevice retries transient EALREADY errno failures and triggers recovery', async () => {
-	await assertConnectRetryForErrnoCode('EALREADY');
-});
+for (const code of ['EINTR', 'EALREADY', 'ENOTCONN', 'EHOSTUNREACH', 'ETIMEDOUT']) {
+	test(`connectToDevice retries transient ${code} errno failures and triggers recovery`, async () => {
+		await assertConnectRetryForErrnoCode(code);
+	});
+}
