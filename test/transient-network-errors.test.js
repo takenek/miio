@@ -57,3 +57,16 @@ test('normalizeNetworkError maps errno numbers to symbolic transient code when a
 	assert.equal(err.code, 'EINTR');
 	assert.equal(isTransientNetworkError(err), true);
 });
+
+test('isTransientNetworkError treats network communication message as transient regardless of casing', () => {
+	const err = new Error('network communication is unavailable while polling');
+
+	assert.equal(isTransientNetworkError(err), true);
+});
+
+test('isTransientNetworkError treats wrapped lowercase network communication message as transient', () => {
+	const err = new Error('outer wrapper');
+	err.cause = new Error('NETWORK COMMUNICATION IS UNAVAILABLE while reconnecting');
+
+	assert.equal(isTransientNetworkError(err), true);
+});
