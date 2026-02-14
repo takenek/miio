@@ -241,3 +241,82 @@ test('requestRecoveryDiscovery swallows unexpected synchronous discovery failure
 	network.references = originalReferences;
 	network._lastRecoveryDiscovery = originalLastRecoveryDiscovery;
 });
+
+test('requestRecoveryDiscovery defers discovery while socket reset is in progress', async () => {
+	const originalSearch = network.search;
+	const originalReferences = network.references;
+	const originalLastRecoveryDiscovery = network._lastRecoveryDiscovery;
+	const originalSocketResetInProgress = network._socketResetInProgress;
+	const originalSocket = network._socket;
+	const originalPendingRecoveryDiscovery = network._pendingRecoveryDiscovery;
+
+	let searchCalls = 0;
+	network.search = () => {
+		searchCalls++;
+	};
+
+	network.references = 1;
+	network._lastRecoveryDiscovery = 0;
+	network._socketResetInProgress = true;
+	network._socket = null;
+	network._pendingRecoveryDiscovery = null;
+
+	network.requestRecoveryDiscovery('test');
+	assert.equal(searchCalls, 0);
+
+	network._socketResetInProgress = false;
+	network._socket = {
+		send(data, offset, length, port, address, callback) {
+			if (typeof callback === 'function') callback(null);
+		}
+	};
+
+	await new Promise(resolve => setTimeout(resolve, 350));
+	assert.ok(searchCalls >= 1);
+
+	if (network._pendingRecoveryDiscovery) {
+		clearTimeout(network._pendingRecoveryDiscovery);
+	}
+	network.search = originalSearch;
+	network.references = originalReferences;
+	network._lastRecoveryDiscovery = originalLastRecoveryDiscovery;
+	network._socketResetInProgress = originalSocketResetInProgress;
+	network._socket = originalSocket;
+	network._pendingRecoveryDiscovery = originalPendingRecoveryDiscovery;
+});
+
+test('requestRecoveryDiscovery clears deferred discovery when references are released', async () => {
+	const originalSearch = network.search;
+	const originalReferences = network.references;
+	const originalLastRecoveryDiscovery = network._lastRecoveryDiscovery;
+	const originalSocketResetInProgress = network._socketResetInProgress;
+	const originalSocket = network._socket;
+	const originalPendingRecoveryDiscovery = network._pendingRecoveryDiscovery;
+
+	let searchCalls = 0;
+	network.search = () => {
+		searchCalls++;
+	};
+
+	network.references = 1;
+	network._lastRecoveryDiscovery = 0;
+	network._socketResetInProgress = true;
+	network._socket = null;
+	network._pendingRecoveryDiscovery = null;
+
+	network.requestRecoveryDiscovery('test');
+	assert.ok(network._pendingRecoveryDiscovery);
+
+	network.references = 0;
+	network.updateSocket();
+
+	await new Promise(resolve => setTimeout(resolve, 350));
+	assert.equal(searchCalls, 0);
+
+	network.search = originalSearch;
+	network.references = originalReferences;
+	network._lastRecoveryDiscovery = originalLastRecoveryDiscovery;
+	network._socketResetInProgress = originalSocketResetInProgress;
+	network._socket = originalSocket;
+	network._pendingRecoveryDiscovery = originalPendingRecoveryDiscovery;
+});
