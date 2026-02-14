@@ -4,6 +4,7 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 
 const network = require('../lib/network');
+const { TRANSIENT_NETWORK_ERROR_CODES } = require('../lib/transientNetworkErrors');
 
 function createTransientError(code) {
 	const err = new Error(code);
@@ -11,93 +12,63 @@ function createTransientError(code) {
 	return err;
 }
 
-test('search resets socket when discovery cannot access socket', () => {
-	let resetReason;
-	const originalResetSocket = network.resetSocket;
-	const originalDescriptor = Object.getOwnPropertyDescriptor(network, 'socket');
+for (const code of TRANSIENT_NETWORK_ERROR_CODES) {
+	test(`search resets socket when discovery cannot access socket (${code})`, () => {
+		let resetReason;
+		const originalResetSocket = network.resetSocket;
+		const originalDescriptor = Object.getOwnPropertyDescriptor(network, 'socket');
 
-	network.resetSocket = reason => {
-		resetReason = reason;
-	};
+		network.resetSocket = reason => {
+			resetReason = reason;
+		};
 
-	Object.defineProperty(network, 'socket', {
-		configurable: true,
-		get() {
-			throw createTransientError('ENOTCONN');
+		Object.defineProperty(network, 'socket', {
+			configurable: true,
+			get() {
+				throw createTransientError(code);
+			}
+		});
+
+		assert.doesNotThrow(() => network.search());
+		assert.match(resetReason, new RegExp(`discovery socket unavailable: ${code}`));
+
+		if (originalDescriptor) {
+			Object.defineProperty(network, 'socket', originalDescriptor);
+		} else {
+			delete network.socket;
 		}
+		network.resetSocket = originalResetSocket;
 	});
 
-	assert.doesNotThrow(() => network.search());
-	assert.match(resetReason, /discovery socket unavailable: ENOTCONN/);
+	test(`search resets socket when discovery broadcast callback fails transiently (${code})`, async () => {
+		let resetReason;
+		const originalResetSocket = network.resetSocket;
+		const originalDescriptor = Object.getOwnPropertyDescriptor(network, 'socket');
 
-	if (originalDescriptor) {
-		Object.defineProperty(network, 'socket', originalDescriptor);
-	} else {
-		delete network.socket;
-	}
-	network.resetSocket = originalResetSocket;
-});
+		network.resetSocket = reason => {
+			resetReason = reason;
+		};
 
-test('search resets socket when discovery broadcast callback fails transiently', async () => {
-	let resetReason;
-	const originalResetSocket = network.resetSocket;
-	const originalDescriptor = Object.getOwnPropertyDescriptor(network, 'socket');
+		Object.defineProperty(network, 'socket', {
+			configurable: true,
+			get() {
+				return {
+					send(data, offset, length, port, address, callback) {
+						callback(createTransientError(code));
+					}
+				};
+			}
+		});
 
-	network.resetSocket = reason => {
-		resetReason = reason;
-	};
+		network.search();
+		await new Promise(resolve => setTimeout(resolve, 10));
+		assert.match(resetReason, new RegExp(`discovery broadcast error: ${code}`));
 
-	Object.defineProperty(network, 'socket', {
-		configurable: true,
-		get() {
-			return {
-				send(data, offset, length, port, address, callback) {
-					callback(createTransientError('ENETDOWN'));
-				}
-			};
+		if (originalDescriptor) {
+			Object.defineProperty(network, 'socket', originalDescriptor);
+		} else {
+			delete network.socket;
 		}
+		network.resetSocket = originalResetSocket;
 	});
-
-	network.search();
-	await new Promise(resolve => setTimeout(resolve, 10));
-	assert.match(resetReason, /discovery broadcast error: ENETDOWN/);
-
-	if (originalDescriptor) {
-		Object.defineProperty(network, 'socket', originalDescriptor);
-	} else {
-		delete network.socket;
-	}
-	network.resetSocket = originalResetSocket;
-});
-
-test('search resets socket when discovery broadcast callback fails with EINTR', async () => {
-	let resetReason;
-	const originalResetSocket = network.resetSocket;
-	const originalDescriptor = Object.getOwnPropertyDescriptor(network, 'socket');
-
-	network.resetSocket = reason => {
-		resetReason = reason;
-	};
-
-	Object.defineProperty(network, 'socket', {
-		configurable: true,
-		get() {
-			return {
-				send(data, offset, length, port, address, callback) {
-					callback(createTransientError('EINTR'));
-				}
-			};
-		}
-	});
-
-	network.search();
-	await new Promise(resolve => setTimeout(resolve, 10));
-	assert.match(resetReason, /discovery broadcast error: EINTR/);
-
-	if (originalDescriptor) {
-		Object.defineProperty(network, 'socket', originalDescriptor);
-	} else {
-		delete network.socket;
-	}
-	network.resetSocket = originalResetSocket;
-});
+}
