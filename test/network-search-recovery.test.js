@@ -221,3 +221,23 @@ for (const code of ['EINTR', 'EALREADY', 'ENOTCONN', 'EHOSTUNREACH', 'ETIMEDOUT'
 		network.resetSocket = originalResetSocket;
 	});
 }
+
+test('requestRecoveryDiscovery swallows unexpected synchronous discovery failures', () => {
+	const originalSearch = network.search;
+	const originalReferences = network.references;
+	const originalLastRecoveryDiscovery = network._lastRecoveryDiscovery;
+
+	network.references = 1;
+	network._lastRecoveryDiscovery = 0;
+	network.search = () => {
+		throw new Error('unexpected discovery failure');
+	};
+
+	assert.doesNotThrow(() => {
+		network.requestRecoveryDiscovery('test');
+	});
+
+	network.search = originalSearch;
+	network.references = originalReferences;
+	network._lastRecoveryDiscovery = originalLastRecoveryDiscovery;
+});
