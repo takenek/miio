@@ -5,7 +5,7 @@ const nodePlugin = require('eslint-plugin-n');
 
 module.exports = [
 	js.configs.recommended,
-	...nodePlugin.configs['flat/recommended'],
+	nodePlugin.configs['flat/recommended'],
 	{
 		languageOptions: {
 			ecmaVersion: 2020,
