@@ -149,6 +149,38 @@ test('search normalizes nested-cause transient discovery callback errors', async
 	network.resetSocket = originalResetSocket;
 });
 
+test('search resets socket when discovery broadcast callback fails with transient outage message only', async () => {
+	let resetReason;
+	const originalResetSocket = network.resetSocket;
+	const originalDescriptor = Object.getOwnPropertyDescriptor(network, 'socket');
+
+	network.resetSocket = reason => {
+		resetReason = reason;
+	};
+
+	Object.defineProperty(network, 'socket', {
+		configurable: true,
+		get() {
+			return {
+				send(data, offset, length, port, address, callback) {
+					callback(new Error('NETWORK COMMUNICATION IS UNAVAILABLE while sending discovery'));
+				}
+			};
+		}
+	});
+
+	network.search();
+	await new Promise(resolve => setTimeout(resolve, 10));
+	assert.match(resetReason, /discovery broadcast error:/);
+
+	if (originalDescriptor) {
+		Object.defineProperty(network, 'socket', originalDescriptor);
+	} else {
+		delete network.socket;
+	}
+	network.resetSocket = originalResetSocket;
+});
+
 for (const code of ['EINTR', 'EALREADY', 'ENOTCONN', 'EHOSTUNREACH', 'ETIMEDOUT']) {
 	test(`search normalizes ${code} errno transient discovery callback errors`, async () => {
 		const errno = getErrnoForCode(code);
