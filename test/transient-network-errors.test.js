@@ -19,6 +19,18 @@ test('normalizeNetworkError uppercases lowercase transient codes', () => {
 	assert.equal(isTransientNetworkError(err), true);
 });
 
+for (const code of ['ENOTCONN', 'EHOSTUNREACH', 'ETIMEDOUT']) {
+	test(`normalizeNetworkError uppercases lowercase ${code} transient code`, () => {
+		const err = new Error(code + ' lowercase transient');
+		err.code = code.toLowerCase();
+
+		normalizeNetworkError(err);
+
+		assert.equal(err.code, code);
+		assert.equal(isTransientNetworkError(err), true);
+	});
+}
+
 test('normalizeNetworkError maps nested cause transient code', () => {
 	const err = new Error('outer wrapper');
 	err.cause = Object.assign(new Error('inner transient error'), {
@@ -64,6 +76,18 @@ test('normalizeNetworkError maps EINTR errno numbers to symbolic transient code 
 
 test('normalizeNetworkError maps EALREADY errno numbers to symbolic transient code when available', () => {
 	assertNormalizeErrnoCode('EALREADY');
+});
+
+test('normalizeNetworkError maps ENOTCONN errno numbers to symbolic transient code when available', () => {
+	assertNormalizeErrnoCode('ENOTCONN');
+});
+
+test('normalizeNetworkError maps EHOSTUNREACH errno numbers to symbolic transient code when available', () => {
+	assertNormalizeErrnoCode('EHOSTUNREACH');
+});
+
+test('normalizeNetworkError maps ETIMEDOUT errno numbers to symbolic transient code when available', () => {
+	assertNormalizeErrnoCode('ETIMEDOUT');
 });
 
 test('isTransientNetworkError treats network communication message as transient regardless of casing', () => {
