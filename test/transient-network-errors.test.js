@@ -31,31 +31,39 @@ test('normalizeNetworkError maps nested cause transient code', () => {
 	assert.equal(isTransientNetworkError(err), true);
 });
 
-test('normalizeNetworkError maps errno numbers to symbolic transient code when available', () => {
+function assertNormalizeErrnoCode(code) {
 	if (typeof util.getSystemErrorMap !== 'function') {
 		return;
 	}
 
 	const systemErrors = util.getSystemErrorMap();
-	let eintrErrno = null;
-	for (const [errno, [code]] of systemErrors) {
-		if (code === 'EINTR') {
-			eintrErrno = errno;
+	let mappedErrno = null;
+	for (const [errno, [mapCode]] of systemErrors) {
+		if (mapCode === code) {
+			mappedErrno = errno;
 			break;
 		}
 	}
 
-	if (eintrErrno === null) {
+	if (mappedErrno === null) {
 		return;
 	}
 
 	const err = new Error('interrupted');
-	err.errno = eintrErrno;
+	err.errno = mappedErrno;
 
 	normalizeNetworkError(err);
 
-	assert.equal(err.code, 'EINTR');
+	assert.equal(err.code, code);
 	assert.equal(isTransientNetworkError(err), true);
+}
+
+test('normalizeNetworkError maps EINTR errno numbers to symbolic transient code when available', () => {
+	assertNormalizeErrnoCode('EINTR');
+});
+
+test('normalizeNetworkError maps EALREADY errno numbers to symbolic transient code when available', () => {
+	assertNormalizeErrnoCode('EALREADY');
 });
 
 test('isTransientNetworkError treats network communication message as transient regardless of casing', () => {
