@@ -201,20 +201,20 @@ test('connectToDevice retries transient nested-cause EALREADY failures and trigg
 	}
 });
 
-test('connectToDevice retries transient EINTR errno failures and triggers recovery', async () => {
+async function assertConnectRetryForErrnoCode(code) {
 	if (typeof util.getSystemErrorMap !== 'function') {
 		return;
 	}
 
-	let eintrErrno = null;
-	for (const [errno, [code]] of util.getSystemErrorMap()) {
-		if (code === 'EINTR') {
-			eintrErrno = errno;
+	let mappedErrno = null;
+	for (const [errno, [mapCode]] of util.getSystemErrorMap()) {
+		if (mapCode === code) {
+			mappedErrno = errno;
 			break;
 		}
 	}
 
-	if (eintrErrno === null) {
+	if (mappedErrno === null) {
 		return;
 	}
 
@@ -246,7 +246,7 @@ test('connectToDevice retries transient EINTR errno failures and triggers recove
 			findAttempts++;
 			if (findAttempts === 1) {
 				const err = new Error('simulated transient connect errno error');
-				err.errno = eintrErrno;
+				err.errno = mappedErrno;
 				throw err;
 			}
 
@@ -261,7 +261,7 @@ test('connectToDevice retries transient EINTR errno failures and triggers recove
 
 		assert.equal(findAttempts, 2);
 		assert.deepEqual(recoveryReasons.map(entry => entry[0]), ['resetSocket', 'requestRecoveryDiscovery']);
-		assert.match(recoveryReasons[0][1], /connect retry after transient error: EINTR/);
+		assert.match(recoveryReasons[0][1], new RegExp(`connect retry after transient error: ${code}`));
 	} finally {
 		global.setTimeout = originalSetTimeout;
 		network.ref = originalRef;
@@ -269,4 +269,12 @@ test('connectToDevice retries transient EINTR errno failures and triggers recove
 		network.resetSocket = originalResetSocket;
 		network.requestRecoveryDiscovery = originalRequestRecoveryDiscovery;
 	}
+}
+
+test('connectToDevice retries transient EINTR errno failures and triggers recovery', async () => {
+	await assertConnectRetryForErrnoCode('EINTR');
+});
+
+test('connectToDevice retries transient EALREADY errno failures and triggers recovery', async () => {
+	await assertConnectRetryForErrnoCode('EALREADY');
 });
