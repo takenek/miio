@@ -72,3 +72,64 @@ for (const code of TRANSIENT_NETWORK_ERROR_CODES) {
 		network.resetSocket = originalResetSocket;
 	});
 }
+
+test('search normalizes lowercase transient discovery access errors', () => {
+	let resetReason;
+	const originalResetSocket = network.resetSocket;
+	const originalDescriptor = Object.getOwnPropertyDescriptor(network, 'socket');
+
+	network.resetSocket = reason => {
+		resetReason = reason;
+	};
+
+	Object.defineProperty(network, 'socket', {
+		configurable: true,
+		get() {
+			throw createTransientError('eintr');
+		}
+	});
+
+	assert.doesNotThrow(() => network.search());
+	assert.match(resetReason, /discovery socket unavailable: EINTR/);
+
+	if (originalDescriptor) {
+		Object.defineProperty(network, 'socket', originalDescriptor);
+	} else {
+		delete network.socket;
+	}
+	network.resetSocket = originalResetSocket;
+});
+
+test('search normalizes nested-cause transient discovery callback errors', async () => {
+	let resetReason;
+	const originalResetSocket = network.resetSocket;
+	const originalDescriptor = Object.getOwnPropertyDescriptor(network, 'socket');
+
+	network.resetSocket = reason => {
+		resetReason = reason;
+	};
+
+	Object.defineProperty(network, 'socket', {
+		configurable: true,
+		get() {
+			return {
+				send(data, offset, length, port, address, callback) {
+					const err = new Error('wrapper callback error');
+					err.cause = createTransientError('EALREADY');
+					callback(err);
+				}
+			};
+		}
+	});
+
+	network.search();
+	await new Promise(resolve => setTimeout(resolve, 10));
+	assert.match(resetReason, /discovery broadcast error: EALREADY/);
+
+	if (originalDescriptor) {
+		Object.defineProperty(network, 'socket', originalDescriptor);
+	} else {
+		delete network.socket;
+	}
+	network.resetSocket = originalResetSocket;
+});
