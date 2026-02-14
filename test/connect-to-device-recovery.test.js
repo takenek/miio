@@ -5,8 +5,14 @@ const assert = require('node:assert/strict');
 
 const network = require('../lib/network');
 const connectToDevice = require('../lib/connectToDevice');
+const { TRANSIENT_NETWORK_ERROR_CODES } = require('../lib/transientNetworkErrors');
 
-for (const transientCode of ['EINTR', 'EALREADY']) {
+const TRANSIENT_CONNECT_ERROR_CODES = [
+	...TRANSIENT_NETWORK_ERROR_CODES,
+	'connection-failure'
+];
+
+for (const transientCode of TRANSIENT_CONNECT_ERROR_CODES) {
 	test(`connectToDevice retries transient ${transientCode} failures and triggers recovery`, async () => {
 		const originalRef = network.ref;
 		const originalFindDeviceViaAddress = network.findDeviceViaAddress;

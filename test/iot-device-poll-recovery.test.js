@@ -4,6 +4,7 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 
 const IotDevice = require('../lib/iotDevice');
+const { TRANSIENT_NETWORK_ERROR_CODES } = require('../lib/transientNetworkErrors');
 
 class TestDevice extends IotDevice {}
 
@@ -58,39 +59,22 @@ test('iotDevice poll does not recover for non-recoverable errors', async () => {
 	assert.equal(calls.length, 0);
 });
 
-test('iotDevice poll treats EINTR as recoverable communication outage', async () => {
-	const calls = [];
-	const network = {
-		resetSocket: reason => calls.push(['resetSocket', reason]),
-		requestRecoveryDiscovery: reason => calls.push(['requestRecoveryDiscovery', reason])
-	};
+for (const transientCode of TRANSIENT_NETWORK_ERROR_CODES) {
+	test(`iotDevice poll treats ${transientCode} as recoverable communication outage`, async () => {
+		const calls = [];
+		const network = {
+			resetSocket: reason => calls.push(['resetSocket', reason]),
+			requestRecoveryDiscovery: reason => calls.push(['requestRecoveryDiscovery', reason])
+		};
 
-	const device = createDevice(network);
-	const err = new Error('interrupted system call');
-	err.code = 'EINTR';
-	device._loadProperties = () => Promise.reject(err);
+		const device = createDevice(network);
+		const err = new Error('transient communication failure');
+		err.code = transientCode;
+		device._loadProperties = () => Promise.reject(err);
 
-	const result = await device.poll(false);
-	assert.equal(result, null);
-	assert.deepEqual(calls.map(entry => entry[0]), ['resetSocket', 'requestRecoveryDiscovery']);
-	assert.match(calls[0][1], /poll recoverable error: EINTR/);
-});
-
-
-test('iotDevice poll treats EALREADY as recoverable communication outage', async () => {
-	const calls = [];
-	const network = {
-		resetSocket: reason => calls.push(['resetSocket', reason]),
-		requestRecoveryDiscovery: reason => calls.push(['requestRecoveryDiscovery', reason])
-	};
-
-	const device = createDevice(network);
-	const err = new Error('operation already in progress');
-	err.code = 'EALREADY';
-	device._loadProperties = () => Promise.reject(err);
-
-	const result = await device.poll(false);
-	assert.equal(result, null);
-	assert.deepEqual(calls.map(entry => entry[0]), ['resetSocket', 'requestRecoveryDiscovery']);
-	assert.match(calls[0][1], /poll recoverable error: EALREADY/);
-});
+		const result = await device.poll(false);
+		assert.equal(result, null);
+		assert.deepEqual(calls.map(entry => entry[0]), ['resetSocket', 'requestRecoveryDiscovery']);
+		assert.match(calls[0][1], new RegExp(`poll recoverable error: ${transientCode}`));
+	});
+}
