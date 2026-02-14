@@ -149,7 +149,7 @@ test('search normalizes nested-cause transient discovery callback errors', async
 	network.resetSocket = originalResetSocket;
 });
 
-for (const code of ['EINTR', 'EALREADY']) {
+for (const code of ['EINTR', 'EALREADY', 'ENOTCONN', 'EHOSTUNREACH', 'ETIMEDOUT']) {
 	test(`search normalizes ${code} errno transient discovery callback errors`, async () => {
 		const errno = getErrnoForCode(code);
 		if (errno === null) {

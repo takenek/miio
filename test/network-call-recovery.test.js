@@ -218,7 +218,7 @@ test('device call triggers recovery flow when handshake times out', async () => 
 	}
 });
 
-for (const code of ['EINTR', 'EALREADY']) {
+for (const code of ['EINTR', 'EALREADY', 'ENOTCONN', 'EHOSTUNREACH', 'ETIMEDOUT']) {
 	test(`device call normalizes ${code} errno callback failures and triggers recovery`, async () => {
 		const errno = getErrnoForCode(code);
 		if (errno === null) {
