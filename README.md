@@ -225,3 +225,7 @@ $ DEBUG=miio\*,thing\* miio discover
 This library is based on the documentation provided by OpenMiHome. See https://github.com/OpenMiHome/mihome-binary-protocol for details. For details
 about how to figure out the commands for new devices look at the
 [documentation for protocol and commands](docs/protocol.md).
+
+## AI Notice
+
+All fixes in this repository are generated with AI assistance.
