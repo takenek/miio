@@ -1,6 +1,7 @@
-# (Only) Added Air Purifier 3 support with Miot API
 
-Tested on Air Purifier 3 (`zhimi.airpurifier.mb3`)
+# (Only) Added Air Purifier 3 ,Air Purifier 4 Lite support with Miot API
+
+Tested on Air Purifier 3 (`zhimi.airpurifier.mb3`), Air Purifier 4 Lite(`zhimi.airpurifier.rma1`| `zhimi.airpurifier.rma2`)
 
 # miIO Device Library
 
