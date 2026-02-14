@@ -75,3 +75,22 @@ test('iotDevice poll treats EINTR as recoverable communication outage', async ()
 	assert.deepEqual(calls.map(entry => entry[0]), ['resetSocket', 'requestRecoveryDiscovery']);
 	assert.match(calls[0][1], /poll recoverable error: EINTR/);
 });
+
+
+test('iotDevice poll treats EALREADY as recoverable communication outage', async () => {
+	const calls = [];
+	const network = {
+		resetSocket: reason => calls.push(['resetSocket', reason]),
+		requestRecoveryDiscovery: reason => calls.push(['requestRecoveryDiscovery', reason])
+	};
+
+	const device = createDevice(network);
+	const err = new Error('operation already in progress');
+	err.code = 'EALREADY';
+	device._loadProperties = () => Promise.reject(err);
+
+	const result = await device.poll(false);
+	assert.equal(result, null);
+	assert.deepEqual(calls.map(entry => entry[0]), ['resetSocket', 'requestRecoveryDiscovery']);
+	assert.match(calls[0][1], /poll recoverable error: EALREADY/);
+});
