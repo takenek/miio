@@ -2,6 +2,7 @@
 
 const test = require('node:test');
 const assert = require('node:assert/strict');
+const util = require('util');
 
 const network = require('../lib/network');
 const { TRANSIENT_NETWORK_ERROR_CODES } = require('../lib/transientNetworkErrors');
@@ -10,6 +11,20 @@ function createTransientError(code) {
 	const err = new Error(code);
 	err.code = code;
 	return err;
+}
+
+function getErrnoForCode(code) {
+	if (typeof util.getSystemErrorMap !== 'function') {
+		return null;
+	}
+
+	for (const [errno, [mappedCode]] of util.getSystemErrorMap()) {
+		if (mappedCode === code) {
+			return errno;
+		}
+	}
+
+	return null;
 }
 
 for (const code of TRANSIENT_NETWORK_ERROR_CODES) {
@@ -133,3 +148,44 @@ test('search normalizes nested-cause transient discovery callback errors', async
 	}
 	network.resetSocket = originalResetSocket;
 });
+
+for (const code of ['EINTR', 'EALREADY']) {
+	test(`search normalizes ${code} errno transient discovery callback errors`, async () => {
+		const errno = getErrnoForCode(code);
+		if (errno === null) {
+			return;
+		}
+
+		let resetReason;
+		const originalResetSocket = network.resetSocket;
+		const originalDescriptor = Object.getOwnPropertyDescriptor(network, 'socket');
+
+		network.resetSocket = reason => {
+			resetReason = reason;
+		};
+
+		Object.defineProperty(network, 'socket', {
+			configurable: true,
+			get() {
+				return {
+					send(data, offset, length, port, address, callback) {
+						const err = new Error('discovery errno failure');
+						err.errno = errno;
+						callback(err);
+					}
+				};
+			}
+		});
+
+		network.search();
+		await new Promise(resolve => setTimeout(resolve, 10));
+		assert.match(resetReason, new RegExp(`discovery broadcast error: ${code}`));
+
+		if (originalDescriptor) {
+			Object.defineProperty(network, 'socket', originalDescriptor);
+		} else {
+			delete network.socket;
+		}
+		network.resetSocket = originalResetSocket;
+	});
+}
